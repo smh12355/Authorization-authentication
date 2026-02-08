@@ -1,0 +1,23 @@
+# User secrets
+.env
+*.env
+!.env.example
+
+# Sensitive data
+appsettings.Development.json
+appsettings.Production.json
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Build
+bin/
+obj/
+out/
+
+# Logs
+*.log
