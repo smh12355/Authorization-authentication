@@ -20,7 +20,7 @@ ASP.NET Core Web API with Keycloak authentication and role-based authorization.
 
 ### 1. Запуск Keycloak и PostgreSQL
 ```bash
-# Скопируй .env.example в .env
+# Зайди в папку docker, скопируй .env.example в .env
 cp .env.example .env
 
 # Отредактируй .env (укажи пароли)

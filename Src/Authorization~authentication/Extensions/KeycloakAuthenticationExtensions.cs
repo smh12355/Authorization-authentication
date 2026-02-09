@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text.Json;
@@ -40,7 +40,15 @@ public static class KeycloakAuthenticationExtensions
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("UserPolicy", policy =>
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole("User") ||
+                    context.User.IsInRole("Admin")
+                ));
+        });
+
 
         return services;
     }

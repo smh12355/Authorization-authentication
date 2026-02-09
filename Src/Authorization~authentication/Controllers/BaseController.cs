@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Authorization_authentication.Controllers;
 
 [ApiController]
+[Authorize(Policy = "UserPolicy")]
 [Route("api")]
 public class BaseController : ControllerBase
 {
@@ -15,9 +16,7 @@ public class BaseController : ControllerBase
         return Ok(new { message = "This is a public endpoint, no authentication required!" });
     }
 
-    // Защищенный endpoint (требует любую аутентификацию)
     [HttpGet("protected")]
-    [Authorize]
     public IActionResult GetProtected()
     {
         var username = User.Identity?.Name ?? "Unknown";
@@ -31,17 +30,13 @@ public class BaseController : ControllerBase
         });
     }
 
-    // Endpoint только для роли User
     [HttpGet("user")]
-    [Authorize(Roles = "User")]
     public IActionResult GetUser()
     {
         return Ok(new { message = "Hello User! You have User role." });
     }
 
-    // Endpoint только для роли Admin
     [HttpGet("admin")]
-    [Authorize(Roles = "Admin")]
     public IActionResult GetAdmin()
     {
         return Ok(new { message = "Hello Admin! You have Admin role." });

@@ -1,6 +1,4 @@
 using Authorization_authentication.Extensions;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +17,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseAuthentication(); // Сначала аутентификация
-app.UseAuthorization();  // Потом авторизация
+app.UseAuthentication(); // РЎРЅР°С‡Р°Р»Р° Р°СѓС‚РµРЅС‚РёС„РёРєР°С†РёСЏ
+app.UseAuthorization();  // РџРѕС‚РѕРј Р°РІС‚РѕСЂРёР·Р°С†РёСЏ
 app.UseHttpsRedirection();
 
 app.MapControllers();
