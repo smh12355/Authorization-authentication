@@ -37,6 +37,7 @@ public class BaseController : ControllerBase
     }
 
     [HttpGet("admin")]
+    [Authorize(Roles = "Admin")]
     public IActionResult GetAdmin()
     {
         return Ok(new { message = "Hello Admin! You have Admin role." });

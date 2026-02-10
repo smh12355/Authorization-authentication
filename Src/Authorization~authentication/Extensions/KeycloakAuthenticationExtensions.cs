@@ -1,4 +1,6 @@
+using Authorization_authentication.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text.Json;
@@ -11,33 +13,42 @@ public static class KeycloakAuthenticationExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var authOptions = configuration
+            .GetSection(nameof(AuthOptions))
+            .Get<AuthOptions>() ?? throw new InvalidOperationException(
+                    "AuthOptions section is missing in appsettings.json");
+
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = configuration["Keycloak:Authority"];
-                options.Audience = configuration["Keycloak:Audience"];
-                options.MetadataAddress = configuration["Keycloak:MetadataAddress"];
-                options.RequireHttpsMetadata = bool.Parse(
-                    configuration["Keycloak:RequireHttpsMetadata"] ?? "false");
+                options.Authority = authOptions.Issuer;
+                options.Audience = authOptions.ClientId;
+                options.RequireHttpsMetadata = authOptions.RequireHttpsMetadata;
 
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateIssuer = true,
                     ValidateAudience = false,
+                    ValidateIssuer = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
+
+                    ValidIssuer = authOptions.Issuer,
+
+                    NameClaimType = "preferred_username",
+                    RoleClaimType = ClaimTypes.Role,
+
                     ClockSkew = TimeSpan.Zero
                 };
 
-                // Маппинг ролей из realm_access.roles в Claims
-                options.Events = new JwtBearerEvents
-                {
-                    OnTokenValidated = context =>
-                    {
-                        MapKeycloakRolesToClaims(context);
-                        return Task.CompletedTask;
-                    }
-                };
+                //// Маппинг ролей из realm_access.roles в Claims
+                //options.Events = new JwtBearerEvents
+                //{
+                //    OnTokenValidated = context =>
+                //    {
+                //        MapKeycloakRolesToClaims(context);
+                //        return Task.CompletedTask;
+                //    }
+                //};
             });
 
         services.AddAuthorization(options =>
