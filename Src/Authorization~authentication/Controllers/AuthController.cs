@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -5,8 +6,9 @@ namespace Authorization_authentication.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api")]
-public class BaseController : ControllerBase
+[ApiVersion("1.0")]
+[Route(WebConstants.ApiControllerRoute)]
+public class AuthController : ControllerBase
 {
     [HttpGet("public")]
     [AllowAnonymous]
