@@ -4,11 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace Authorization_authentication.Controllers;
 
 [ApiController]
-[Authorize(Policy = "UserPolicy")]
+[Authorize]
 [Route("api")]
 public class BaseController : ControllerBase
 {
-    // Публичный endpoint (без защиты)
     [HttpGet("public")]
     [AllowAnonymous]
     public IActionResult GetPublic()

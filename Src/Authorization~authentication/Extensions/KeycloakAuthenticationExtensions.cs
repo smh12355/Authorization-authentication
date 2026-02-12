@@ -1,6 +1,5 @@
 using Authorization_authentication.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text.Json;
@@ -27,11 +26,13 @@ public static class KeycloakAuthenticationExtensions
 
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateAudience = false,
-                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidAudience = authOptions.ClientId,
+
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
 
+                    ValidateIssuer = true,
                     ValidIssuer = authOptions.Issuer,
 
                     NameClaimType = "preferred_username",
@@ -51,14 +52,16 @@ public static class KeycloakAuthenticationExtensions
                 //};
             });
 
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy("UserPolicy", policy =>
-                policy.RequireAssertion(context =>
-                    context.User.IsInRole("User") ||
-                    context.User.IsInRole("Admin")
-                ));
-        });
+        // Добавляем вложенность ролей через composition-root в keycloak
+        //services.AddAuthorization(options =>
+        //{
+        //    options.AddPolicy("UserPolicy", policy =>
+        //        policy.RequireAssertion(context =>
+        //            context.User.IsInRole("User") ||
+        //            context.User.IsInRole("Admin")
+        //        ));
+        //});
+        services.AddAuthorization();
 
 
         return services;
