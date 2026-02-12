@@ -1,5 +1,8 @@
 # Authorization & Authentication with Keycloak
 
+> ⚠️ **Проект находится в разработке**  
+> Информация в этом README может быть неактуальной. Документация будет обновлена по мере завершения разработки.
+
 ASP.NET Core Web API with Keycloak authentication and role-based authorization.
 
 ## Технологии
