@@ -11,5 +11,11 @@ public record AuthOptions
     [Required(ErrorMessage = "ClientId is required")]
     public required string ClientId { get; init; }
 
+    [Required(ErrorMessage = "RealmClientId is required")]
+    public required string RealmClientId { get; init; }
+
     public bool RequireHttpsMetadata { get; init; }
+
+    [Required(ErrorMessage = "ClientSecret is required for confidential client")]
+    public required string ClientSecret { get; init; }
 }

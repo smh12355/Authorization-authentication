@@ -1,4 +1,4 @@
-namespace Authorization_authentication;
+namespace Authorization_authentication.Constants;
 
 /// <summary>
 ///     Constants for web routing
