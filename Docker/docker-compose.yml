@@ -11,7 +11,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keycloak}
     volumes:
       - keycloak_postgres_data:/var/lib/postgresql/data
-    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s      # Проверять каждые 10 секунд
+      timeout: 5s        # Таймаут команды
+      retries: 5         # 5 неудачных попыток = unhealthy
+    restart: unless-stopped
 
   keycloak:
     container_name: keycloak_app
@@ -29,9 +34,17 @@ services:
       KC_HTTP_ENABLED: true
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: true
     depends_on:
-      - postgres_kc
-    restart: always
-
+      postgres_kc:
+        condition: service_healthy  # Ждём готовности БД
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
+      interval: 2s
+      timeout: 1s
+      retries: 5  # Keycloak долго стартует
+      start_period: 60s  # Даём время на первый запуск
+    restart: unless-stopped
+    
 volumes:
   keycloak_postgres_data:
