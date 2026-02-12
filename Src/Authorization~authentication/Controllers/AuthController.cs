@@ -33,6 +33,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("user")]
+    [Authorize(Roles = "User")]
     public IActionResult GetUser()
     {
         return Ok(new { message = "Hello User! You have User role." });

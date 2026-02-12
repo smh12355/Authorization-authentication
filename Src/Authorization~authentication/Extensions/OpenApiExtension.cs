@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 namespace Authorization_authentication.Extensions;
 
@@ -22,37 +22,37 @@ public static class OpenApiExtension
                 };
 
                 document.Components ??= new OpenApiComponents();
-                document.Components.SecuritySchemes = new Dictionary<string, OpenApiSecurityScheme>
+
+                var bearerScheme = new OpenApiSecurityScheme
                 {
-                    ["Bearer"] = new OpenApiSecurityScheme
-                    {
-                        Name = "Authorization",
-                        Type = SecuritySchemeType.Http,
-                        Scheme = "bearer",
-                        BearerFormat = "JWT",
-                        In = ParameterLocation.Header,
-                        Description = "Введите JWT токен в формате: Bearer {token}"
-                    }
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Введите JWT токен в формате: Bearer {token}"
                 };
 
-                document.SecurityRequirements = new List<OpenApiSecurityRequirement>
+                // Добавление схемы безопасности в компоненты документа
+                // В .NET 10 используется AddComponent вместо прямого назначения
+                document.AddComponent("Bearer", bearerScheme);
+
+                // Создание требования безопасности с использованием нового API
+                var securityRequirement = new OpenApiSecurityRequirement
                 {
-                    new OpenApiSecurityRequirement
-                    {
-                        {
-                            new OpenApiSecurityScheme
-                            {
-                                Reference = new OpenApiReference
-                                {
-                                    Type = ReferenceType.SecurityScheme,
-                                    Id = "Bearer"
-                                }
-                            },
-                            Array.Empty<string>()
-                        }
-                    }
+                    // В .NET 10 используется OpenApiSecuritySchemeReference
+                    [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
                 };
 
+                // Применение требования безопасности ко всем операциям
+                foreach (var operation in document.Paths.Values
+                    .Where(path => path.Operations is not null)
+                    .SelectMany(path => path.Operations!))
+                {
+                    operation.Value.Security ??= new List<OpenApiSecurityRequirement>();
+                    operation.Value.Security.Add(securityRequirement);
+                }
+                
                 return Task.CompletedTask;
             });
         });
