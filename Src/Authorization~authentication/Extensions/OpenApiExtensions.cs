@@ -1,73 +1,11 @@
-using Asp.Versioning;
-using Authorization_authentication.Options;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using System.Security.Claims;
 
 namespace Authorization_authentication.Extensions;
 
-public static class ServiceCollectionExtensions
+public static class OpenApiExtensions
 {
-    // Instance extension для IServiceCollection
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddKeycloakAuthentication(IConfiguration configuration)
-        {
-            var authOptions = configuration
-                .GetSection(nameof(AuthOptions))
-                .Get<AuthOptions>() ?? throw new InvalidOperationException(
-                        "AuthOptions section is missing in appsettings.json");
-
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
-                {
-                    options.Authority = authOptions.Issuer;
-                    options.Audience = authOptions.ClientId;
-                    options.RequireHttpsMetadata = authOptions.RequireHttpsMetadata;
-
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateAudience = true,
-                        ValidAudience = authOptions.ClientId,
-
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-
-                        ValidateIssuer = true,
-                        ValidIssuer = authOptions.Issuer,
-
-                        NameClaimType = "preferred_username",
-                        RoleClaimType = ClaimTypes.Role,
-
-                        ClockSkew = TimeSpan.Zero
-                    };
-
-                    //// Маппинг ролей из realm_access.roles в Claims
-                    //options.Events = new JwtBearerEvents
-                    //{
-                    //    OnTokenValidated = context =>
-                    //    {
-                    //        MapKeycloakRolesToClaims(context);
-                    //        return Task.CompletedTask;
-                    //    }
-                    //};
-                });
-
-            // Добавляем вложенность ролей через composition-root в keycloak
-            //services.AddAuthorization(options =>
-            //{
-            //    options.AddPolicy("UserPolicy", policy =>
-            //        policy.RequireAssertion(context =>
-            //            context.User.IsInRole("User") ||
-            //            context.User.IsInRole("Admin")
-            //        ));
-            //});
-            services.AddAuthorization();
-
-
-            return services;
-        }
         public IServiceCollection AddOwnOpenApi()
         {
             return services.AddOpenApi("v1", options =>
@@ -174,22 +112,5 @@ public static class ServiceCollectionExtensions
             });
         }
 #endif
-        public IServiceCollection AddOwnApiVersioning()
-        {
-            services.AddApiVersioning(options =>
-            {
-                options.DefaultApiVersion = new ApiVersion(1, 0);
-                options.AssumeDefaultVersionWhenUnspecified = true;
-                options.ReportApiVersions = true;
-                options.ApiVersionReader = new UrlSegmentApiVersionReader();
-            })
-            .AddApiExplorer(options =>
-            {
-                options.GroupNameFormat = "'v'VVV";
-                options.SubstituteApiVersionInUrl = true;
-            });
-
-            return services;
-        }
     }
 }

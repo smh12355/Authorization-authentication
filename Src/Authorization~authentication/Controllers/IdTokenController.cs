@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Authorization_authentication.Constants;
 using Authorization_authentication.Options;
+using Authorization_authentication.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
@@ -24,21 +25,6 @@ public class IdTokenController : ControllerBase
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     }
-
-    public record PasswordLoginRequest(
-        [Required] string Username,
-        [Required] string Password);
-
-    public record KeycloakTokenResponse(
-        string access_token,
-        int expires_in,
-        int refresh_expires_in,
-        string refresh_token,
-        string token_type,
-        int not_before_policy,
-        string session_state,
-        string scope,
-        string id_token);
 
     /// <summary>
     ///     Получение ID Token из Keycloak по логину и паролю (OIDC, grant_type=password).

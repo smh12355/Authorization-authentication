@@ -5,6 +5,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddKeycloakAuthentication(builder.Configuration);
+builder.Services.AddMinIO(builder.Configuration);
+
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
 
@@ -32,6 +34,7 @@ app.UseAuthentication(); // Сначала аутентификация
 app.UseAuthorization();  // Потом авторизация
 app.UseHttpsRedirection();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
