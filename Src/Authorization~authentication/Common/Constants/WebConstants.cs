@@ -1,4 +1,4 @@
-namespace Authorization_authentication.Constants;
+namespace Authorization_authentication.Common.Constants;
 
 /// <summary>
 ///     Constants for web routing
@@ -15,4 +15,3 @@ public static class WebConstants
     /// </summary>
     public const string ApiControllerRoute = "api/" + ApiVersionSegment + "/[controller]";
 }
-

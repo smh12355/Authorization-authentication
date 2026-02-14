@@ -1,7 +1,7 @@
 using Amazon.S3;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Authorization_authentication.Services.Implementation;
+namespace Authorization_authentication.Infrastructure.Minio;
 
 public class MinioHealthCheck : IHealthCheck
 {
@@ -20,7 +20,6 @@ public class MinioHealthCheck : IHealthCheck
     {
         try
         {
-            // Простая проверка доступности - список buckets
             await _s3Client.ListBucketsAsync(cancellationToken);
             return HealthCheckResult.Healthy("MinIO is accessible");
         }

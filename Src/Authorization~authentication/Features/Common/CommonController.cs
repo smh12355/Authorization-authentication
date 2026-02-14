@@ -1,8 +1,8 @@
 using Asp.Versioning;
-using Authorization_authentication.Constants;
+using Authorization_authentication.Common.Constants;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Authorization_authentication.Controllers;
+namespace Authorization_authentication.Features.Common;
 
 [ApiController]
 [ApiVersionNeutral]

@@ -1,9 +1,9 @@
 using Asp.Versioning;
-using Authorization_authentication.Constants;
+using Authorization_authentication.Common.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Authorization_authentication.Controllers;
+namespace Authorization_authentication.Features.Auth;
 
 [ApiController]
 [Authorize]
@@ -11,7 +11,6 @@ namespace Authorization_authentication.Controllers;
 [Route(WebConstants.ApiControllerRoute)]
 public class AuthV2Controller : ControllerBase
 {
-    // Пример нового эндпоинта только для v2
     [HttpGet("protected")]
     public IActionResult GetProtectedV2()
     {
@@ -25,7 +24,6 @@ public class AuthV2Controller : ControllerBase
         });
     }
 
-    // Отдельный эндпоинт, чтобы было видно разницу между версиями
     [HttpGet("info")]
     [AllowAnonymous]
     public IActionResult GetInfo()

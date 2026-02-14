@@ -1,11 +1,9 @@
 using Amazon.Runtime;
 using Amazon.S3;
-using Authorization_authentication.HostedServices;
-using Authorization_authentication.Options;
-using Authorization_authentication.Services.Implementation;
+using Authorization_authentication.Common.Options;
 using Microsoft.Extensions.Options;
 
-namespace Authorization_authentication.Extensions;
+namespace Authorization_authentication.Infrastructure.Minio;
 
 public static class S3Extensions
 {
@@ -26,7 +24,7 @@ public static class S3Extensions
                 {
                     ServiceURL = options.Endpoint,
                     ForcePathStyle = true,
-                    UseHttp = !options.UseSsl,   
+                    UseHttp = !options.UseSsl,
                 };
 
                 if (!string.IsNullOrEmpty(options.Region))

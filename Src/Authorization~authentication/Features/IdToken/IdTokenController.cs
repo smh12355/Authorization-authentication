@@ -1,13 +1,12 @@
 using Asp.Versioning;
-using Authorization_authentication.Constants;
-using Authorization_authentication.Options;
-using Authorization_authentication.ValueObjects;
+using Authorization_authentication.Common.Constants;
+using Authorization_authentication.Common.Options;
+using Authorization_authentication.Features.Auth.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 
-namespace Authorization_authentication.Controllers;
+namespace Authorization_authentication.Features.IdToken;
 
 [ApiController]
 [ApiVersionNeutral]
@@ -29,9 +28,6 @@ public class IdTokenController : ControllerBase
     /// <summary>
     ///     Получение ID Token из Keycloak по логину и паролю (OIDC, grant_type=password).
     /// </summary>
-    /// <param name="request">Логин и пароль пользователя.</param>
-    /// <param name="cancellationToken">Токен отмены.</param>
-    /// <returns>ID Token или текст ошибки от Keycloak.</returns>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -51,7 +47,6 @@ public class IdTokenController : ControllerBase
             .Get<AuthOptions>() ?? throw new InvalidOperationException(
                     "AuthOptions section is missing in appsettings.json");
 
-        // В Keycloak endpoint токенов: {issuer}/protocol/openid-connect/token
         var issuer = options.Issuer.TrimEnd('/');
         var tokenEndpoint = $"{issuer}/protocol/openid-connect/token";
 
@@ -64,7 +59,6 @@ public class IdTokenController : ControllerBase
             ["scope"] = "openid"
         };
 
-        // Если для клиента настроен секрет – добавляем его
         if (!string.IsNullOrWhiteSpace(options.ClientSecret))
         {
             form["client_secret"] = options.ClientSecret!;
@@ -78,7 +72,6 @@ public class IdTokenController : ControllerBase
 
         if (!response.IsSuccessStatusCode)
         {
-            // Пробрасываем статус и текст ошибки от Keycloak
             return StatusCode((int)response.StatusCode, responseBody);
         }
 

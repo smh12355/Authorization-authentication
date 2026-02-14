@@ -1,4 +1,4 @@
-namespace Authorization_authentication.ValueObjects;
+namespace Authorization_authentication.Features.Auth.Models;
 
 public record KeycloakTokenResponse(
     string access_token,

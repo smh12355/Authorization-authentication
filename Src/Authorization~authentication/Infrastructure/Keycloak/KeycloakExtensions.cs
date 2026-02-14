@@ -1,9 +1,9 @@
-using Authorization_authentication.Options;
+using Authorization_authentication.Common.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
-namespace Authorization_authentication.Extensions;
+namespace Authorization_authentication.Infrastructure.Keycloak;
 
 public static class KeycloakExtensions
 {
@@ -39,29 +39,9 @@ public static class KeycloakExtensions
 
                         ClockSkew = TimeSpan.Zero
                     };
-
-                    //// Маппинг ролей из realm_access.roles в Claims
-                    //options.Events = new JwtBearerEvents
-                    //{
-                    //    OnTokenValidated = context =>
-                    //    {
-                    //        MapKeycloakRolesToClaims(context);
-                    //        return Task.CompletedTask;
-                    //    }
-                    //};
                 });
 
-            // Добавляем вложенность ролей через composition-root в keycloak
-            //services.AddAuthorization(options =>
-            //{
-            //    options.AddPolicy("UserPolicy", policy =>
-            //        policy.RequireAssertion(context =>
-            //            context.User.IsInRole("User") ||
-            //            context.User.IsInRole("Admin")
-            //        ));
-            //});
             services.AddAuthorization();
-
 
             return services;
         }

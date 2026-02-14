@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Authorization_authentication.Options;
+namespace Authorization_authentication.Common.Options;
 
 public record AuthOptions
 {

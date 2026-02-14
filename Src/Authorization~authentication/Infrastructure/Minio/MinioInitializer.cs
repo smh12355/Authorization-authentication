@@ -1,9 +1,9 @@
 using Amazon.S3;
 using Amazon.S3.Model;
-using Authorization_authentication.Options;
+using Authorization_authentication.Common.Options;
 using Microsoft.Extensions.Options;
 
-namespace Authorization_authentication.HostedServices;
+namespace Authorization_authentication.Infrastructure.Minio;
 
 public class MinioInitializer : IHostedService
 {
@@ -17,7 +17,7 @@ public class MinioInitializer : IHostedService
         ILogger<MinioInitializer> logger)
     {
         _s3Client = s3Client ?? throw new ArgumentNullException(nameof(s3Client));
-        _options = options ?? throw new ArgumentNullException(nameof(options)); ;
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
