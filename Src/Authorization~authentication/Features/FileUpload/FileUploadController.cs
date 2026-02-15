@@ -48,61 +48,48 @@ public class FileUploadController : ControllerBase
                     IFormFile file,
                     CancellationToken cancellationToken = default)
     {
-        try
+        if (file == null || file.Length == 0)
         {
-            if (file == null || file.Length == 0)
-            {
-                return BadRequest("No file uploaded");
-            }
-
-            _logger.LogInformation(
-                    "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
-                    file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
-
-            var typeInspector = new ContentInspectorBuilder()
-            {
-                Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
-            }.Build();
-
-            await using var stream = file.OpenReadStream();
-
-            var result = typeInspector.Inspect(stream);
-            var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
-            var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
-
-            if (!stream.CanSeek)
-                throw new NotSupportedException("Stream does not support seeking");
-
-            stream.Seek(0, SeekOrigin.Begin);
-
-            var objectName = $"{Guid.NewGuid()}{extension}";
-
-            var filePath = await _fileStorage.UploadFileAsync(
-                objectName,
-                stream,
-                mime,
-                cancellationToken);
-
-            return Ok(new FileUploadResponse
-            {
-                FileName = file.FileName,
-                StoredFileName = objectName,
-                FilePath = filePath,
-                Size = file.Length,
-                ContentType = mime,
-                UploadedAt = DateTime.UtcNow
-            });
+            return BadRequest("No file uploaded");
         }
-        catch (OperationCanceledException)
+
+        _logger.LogInformation(
+                "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
+                file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
+
+        var typeInspector = new ContentInspectorBuilder()
         {
-            _logger.LogWarning("File upload was cancelled");
-            return StatusCode(499, "Upload cancelled"); // Client Closed Request
-        }
-        catch (Exception ex)
+            Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
+        }.Build();
+
+        await using var stream = file.OpenReadStream();
+
+        var result = typeInspector.Inspect(stream);
+        var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
+        var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
+
+        if (!stream.CanSeek)
+            throw new NotSupportedException("Stream does not support seeking");
+
+        stream.Seek(0, SeekOrigin.Begin);
+
+        var objectName = $"{Guid.NewGuid()}{extension}";
+
+        var filePath = await _fileStorage.UploadFileAsync(
+            objectName,
+            stream,
+            mime,
+            cancellationToken);
+
+        return Ok(new FileUploadResponse
         {
-            _logger.LogError(ex, "Error during file upload");
-            return StatusCode(500, "Internal server error during upload");
-        }
+            FileName = file.FileName,
+            StoredFileName = objectName,
+            FilePath = filePath,
+            Size = file.Length,
+            ContentType = mime,
+            UploadedAt = DateTime.UtcNow
+        });
     }
 
     /// <summary>
@@ -119,40 +106,32 @@ public class FileUploadController : ControllerBase
         bucketName ??= "uploads";
         contentType ??= "application/octet-stream";
 
-        try
+        var fileExtension = Path.GetExtension(fileName);
+        var objectName = $"{Guid.NewGuid()}{fileExtension}";
+
+        _logger.LogInformation(
+            "Starting direct stream upload: {FileName}",
+            fileName);
+
+        // ⭐⭐⭐ Request.Body - это ПРЯМОЙ поток от клиента!
+        // Клиент → TCP → Request.Body → MinIO
+        // НОЛЬ промежуточных буферов!
+        var filePath = await _fileStorage.UploadRawFileAsync(
+            bucketName,
+            objectName,
+            Request.Body,
+            contentType,
+            cancellationToken);
+
+        return Ok(new FileUploadResponse
         {
-            var fileExtension = Path.GetExtension(fileName);
-            var objectName = $"{Guid.NewGuid()}{fileExtension}";
-
-            _logger.LogInformation(
-                "Starting direct stream upload: {FileName}",
-                fileName);
-
-            // ⭐⭐⭐ Request.Body - это ПРЯМОЙ поток от клиента!
-            // Клиент → TCP → Request.Body → MinIO
-            // НОЛЬ промежуточных буферов!
-            var filePath = await _fileStorage.UploadRawFileAsync(
-                bucketName,
-                objectName,
-                Request.Body,
-                contentType,
-                cancellationToken);
-
-            return Ok(new FileUploadResponse
-            {
-                FileName = fileName,
-                StoredFileName = objectName,
-                FilePath = filePath,
-                Size = Request.ContentLength ?? 0,
-                ContentType = contentType,
-                UploadedAt = DateTime.UtcNow
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during direct upload");
-            return StatusCode(500, "Internal server error during upload");
-        }
+            FileName = fileName,
+            StoredFileName = objectName,
+            FilePath = filePath,
+            Size = Request.ContentLength ?? 0,
+            ContentType = contentType,
+            UploadedAt = DateTime.UtcNow
+        });
     }
 
     /// <summary>
@@ -171,62 +150,54 @@ public class FileUploadController : ControllerBase
             return BadRequest("Expected multipart/form-data request");
         }
 
-        try
+        var boundary = GetBoundary(MediaTypeHeaderValue.Parse(Request.ContentType));
+        var reader = new MultipartReader(boundary, Request.Body);
+
+        MultipartSection? section;
+
+        // Читаем секции multipart по одной
+        while ((section = await reader.ReadNextSectionAsync(cancellationToken)) != null)
         {
-            var boundary = GetBoundary(MediaTypeHeaderValue.Parse(Request.ContentType));
-            var reader = new MultipartReader(boundary, Request.Body);
+            var hasContentDisposition = ContentDispositionHeaderValue.TryParse(
+                section.ContentDisposition,
+                out var contentDisposition);
 
-            MultipartSection? section;
-
-            // Читаем секции multipart по одной
-            while ((section = await reader.ReadNextSectionAsync(cancellationToken)) != null)
+            if (!hasContentDisposition || !contentDisposition.IsFileDisposition())
             {
-                var hasContentDisposition = ContentDispositionHeaderValue.TryParse(
-                    section.ContentDisposition,
-                    out var contentDisposition);
-
-                if (!hasContentDisposition || !contentDisposition.IsFileDisposition())
-                {
-                    continue; // Пропускаем не-файловые поля
-                }
-
-                var fileName = contentDisposition.FileName.Value?.Trim('"');
-                var fileExtension = Path.GetExtension(fileName);
-                var objectName = $"{Guid.NewGuid()}{fileExtension}";
-                var contentType = section.ContentType ?? "application/octet-stream";
-
-                _logger.LogInformation(
-                    "Receiving file stream: {FileName}, Content-Type: {ContentType}",
-                    fileName, contentType);
-
-                // ⭐ КЛЮЧЕВОЙ МОМЕНТ: section.Body - это прямой stream от клиента!
-                // Данные идут: Клиент → Request.Body → section.Body → MinIO
-                // БЕЗ промежуточной буферизации!
-                var filePath = await _fileStorage.UploadRawFileAsync(
-                    bucketName,
-                    objectName,
-                    section.Body, // ⭐ Прямой поток!
-                    contentType,
-                    cancellationToken);
-
-                return Ok(new FileUploadResponse
-                {
-                    FileName = fileName ?? "unknown",
-                    StoredFileName = objectName,
-                    FilePath = filePath,
-                    Size = 0, // Размер неизвестен заранее при streaming
-                    ContentType = contentType,
-                    UploadedAt = DateTime.UtcNow
-                });
+                continue; // Пропускаем не-файловые поля
             }
 
-            return BadRequest("No file found in request");
+            var fileName = contentDisposition.FileName.Value?.Trim('"');
+            var fileExtension = Path.GetExtension(fileName);
+            var objectName = $"{Guid.NewGuid()}{fileExtension}";
+            var contentType = section.ContentType ?? "application/octet-stream";
+
+            _logger.LogInformation(
+                "Receiving file stream: {FileName}, Content-Type: {ContentType}",
+                fileName, contentType);
+
+            // ⭐ КЛЮЧЕВОЙ МОМЕНТ: section.Body - это прямой stream от клиента!
+            // Данные идут: Клиент → Request.Body → section.Body → MinIO
+            // БЕЗ промежуточной буферизации!
+            var filePath = await _fileStorage.UploadRawFileAsync(
+                bucketName,
+                objectName,
+                section.Body, // ⭐ Прямой поток!
+                contentType,
+                cancellationToken);
+
+            return Ok(new FileUploadResponse
+            {
+                FileName = fileName ?? "unknown",
+                StoredFileName = objectName,
+                FilePath = filePath,
+                Size = 0, // Размер неизвестен заранее при streaming
+                ContentType = contentType,
+                UploadedAt = DateTime.UtcNow
+            });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during true streaming upload");
-            return StatusCode(500, "Internal server error during upload");
-        }
+
+        return BadRequest("No file found in request");
     }
 
     private static string GetBoundary(MediaTypeHeaderValue contentType)

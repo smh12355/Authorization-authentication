@@ -30,38 +30,29 @@ public class MinioFileStorageService : IFileStorageService
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        try
+        _logger.LogInformation(
+            "Starting streaming upload: {ObjectName} to bucket {BucketName}. Content-Type: {ContentType}",
+            objectName, _bucketName, contentType);
+
+        // КЛЮЧЕВОЙ МОМЕНТ: stream передается напрямую без загрузки в память
+        // MinIO SDK сам читает по частям (chunked upload)
+        var putRequest = new PutObjectRequest
         {
-            _logger.LogInformation(
-                "Starting streaming upload: {ObjectName} to bucket {BucketName}. Content-Type: {ContentType}",
-                objectName, _bucketName, contentType);
+            BucketName = _bucketName,
+            Key = objectName,
+            InputStream = stream,          // Это и есть streaming!
+            ContentType = contentType,
+            AutoCloseStream = false        // Мы сами закроем stream
+        };
 
-            // КЛЮЧЕВОЙ МОМЕНТ: stream передается напрямую без загрузки в память
-            // MinIO SDK сам читает по частям (chunked upload)
-            var putRequest = new PutObjectRequest
-            {
-                BucketName = _bucketName,
-                Key = objectName,
-                InputStream = stream,          // Это и есть streaming!
-                ContentType = contentType,
-                AutoCloseStream = false        // Мы сами закроем stream
-            };
+        var response = await _s3Client.PutObjectAsync(putRequest, cancellationToken);
 
-            var response = await _s3Client.PutObjectAsync(putRequest, cancellationToken);
+        _logger.LogInformation(
+            "Successfully uploaded {ObjectName}. ETag: {ETag}, Size: {Size} bytes",
+            objectName, response.ETag, response.Size);
 
-            _logger.LogInformation(
-                "Successfully uploaded {ObjectName}. ETag: {ETag}, Size: {Size} bytes",
-                objectName, response.ETag, response.Size);
-
-            // Возвращаем путь к файлу
-            return $"{_bucketName}/{objectName}";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading file {ObjectName} to bucket {BucketName}",
-                objectName, _bucketName);
-            throw;
-        }
+        // Возвращаем путь к файлу
+        return $"{_bucketName}/{objectName}";
     }
 
     public async Task<string> UploadFileCompressedAsync(

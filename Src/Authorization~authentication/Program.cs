@@ -20,6 +20,8 @@ builder.Services.AddOwnOpenApi();
 
 var app = builder.Build();
 
+app.UseGlobalExceptionHandling();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi()
