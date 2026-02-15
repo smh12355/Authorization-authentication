@@ -12,7 +12,6 @@ public interface IFileStorageService
     /// <param name="cancellationToken">Токен отмены</param>
     /// <returns>URL загруженного файла или идентификатор</returns>
     Task<string> UploadFileAsync(
-        string bucketName,
         string objectName,
         Stream stream,
         string contentType,

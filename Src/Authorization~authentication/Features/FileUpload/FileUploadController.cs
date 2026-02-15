@@ -22,7 +22,7 @@ public class FileUploadController : ControllerBase
     private const long MaxFileSize = 10L * 1024 * 1024 * 1024;
 
     // Максимальный размер файла (например, 10 GB)
-    private const long MaxBufferedFileSize = 2000 * 1024 * 1024;
+    private const long MaxBufferedFileSize = 500 * 1024 * 1024;
 
     // Максимальный размер файла (например, 10 GB)
     private const long MaxRawFileSize = 10L * 1024 * 1024 * 1024;
@@ -46,21 +46,13 @@ public class FileUploadController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadFile(
                     IFormFile file,
-                    [FromQuery] string? bucketName = null,
                     CancellationToken cancellationToken = default)
     {
-        bucketName ??= "uploads";
-
         try
         {
             if (file == null || file.Length == 0)
             {
                 return BadRequest("No file uploaded");
-            }
-
-            if (file.Length > MaxBufferedFileSize)
-            {
-                return BadRequest($"File size exceeds maximum allowed size of {MaxBufferedFileSize / (1024 * 1024)} MB");
             }
 
             _logger.LogInformation(
@@ -70,27 +62,25 @@ public class FileUploadController : ControllerBase
             var typeInspector = new ContentInspectorBuilder()
             {
                 Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
-            }
-            .Build();
+            }.Build();
 
             await using var stream = file.OpenReadStream();
 
             var result = typeInspector.Inspect(stream);
-            var type = result.ByFileExtension().FirstOrDefault()?.Extension;
-            var mime = result.ByMimeType().FirstOrDefault()?.MimeType;
+            var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
+            var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
 
             if (!stream.CanSeek)
                 throw new NotSupportedException("Stream does not support seeking");
 
             stream.Seek(0, SeekOrigin.Begin);
 
-            var objectName = $"{Guid.NewGuid()}.{type}";
+            var objectName = $"{Guid.NewGuid()}{extension}";
 
             var filePath = await _fileStorage.UploadFileAsync(
-                bucketName,
                 objectName,
                 stream,
-                file.ContentType ?? "application/octet-stream",
+                mime,
                 cancellationToken);
 
             return Ok(new FileUploadResponse

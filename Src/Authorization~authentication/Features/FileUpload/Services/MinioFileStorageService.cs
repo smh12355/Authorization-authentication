@@ -1,6 +1,8 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
+using Authorization_authentication.Common.Options;
+using Microsoft.Extensions.Options;
 using System.IO.Compression;
 
 namespace Authorization_authentication.Features.FileUpload.Services;
@@ -9,17 +11,20 @@ public class MinioFileStorageService : IFileStorageService
 {
     private readonly IAmazonS3 _s3Client;
     private readonly ILogger<MinioFileStorageService> _logger;
+    private readonly string _bucketName;
 
     public MinioFileStorageService(
         IAmazonS3 s3Client,
-        ILogger<MinioFileStorageService> logger)
+        ILogger<MinioFileStorageService> logger,
+        IOptions<MinioOptions> options)
     {
         _s3Client = s3Client;
         _logger = logger;
+        _bucketName = options.Value.BucketName
+            ?? throw new InvalidOperationException("MinIO BucketName is not configured.");
     }
 
     public async Task<string> UploadFileAsync(
-        string bucketName,
         string objectName,
         Stream stream,
         string contentType,
@@ -29,13 +34,13 @@ public class MinioFileStorageService : IFileStorageService
         {
             _logger.LogInformation(
                 "Starting streaming upload: {ObjectName} to bucket {BucketName}. Content-Type: {ContentType}",
-                objectName, bucketName, contentType);
+                objectName, _bucketName, contentType);
 
             // КЛЮЧЕВОЙ МОМЕНТ: stream передается напрямую без загрузки в память
             // MinIO SDK сам читает по частям (chunked upload)
             var putRequest = new PutObjectRequest
             {
-                BucketName = bucketName,
+                BucketName = _bucketName,
                 Key = objectName,
                 InputStream = stream,          // Это и есть streaming!
                 ContentType = contentType,
@@ -49,12 +54,12 @@ public class MinioFileStorageService : IFileStorageService
                 objectName, response.ETag, response.Size);
 
             // Возвращаем путь к файлу
-            return $"{bucketName}/{objectName}";
+            return $"{_bucketName}/{objectName}";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading file {ObjectName} to bucket {BucketName}",
-                objectName, bucketName);
+                objectName, _bucketName);
             throw;
         }
     }
