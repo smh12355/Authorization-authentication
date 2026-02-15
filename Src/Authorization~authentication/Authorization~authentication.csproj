@@ -12,6 +12,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.18.5" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+    <PackageReference Include="Mime-Detective" Version="25.8.1" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.12.38" />
     <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.1.2" />
   </ItemGroup>
