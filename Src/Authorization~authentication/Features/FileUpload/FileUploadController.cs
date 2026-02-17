@@ -44,7 +44,64 @@ public class FileUploadController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxBufferedFileSize)]
     [ProducesResponseType(typeof(FileUploadResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UploadFile(
+    public async Task<IActionResult> BufferedUploadFile(
+                    IFormFile file,
+                    CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("No file uploaded");
+        }
+
+        _logger.LogInformation(
+                "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
+                file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
+
+        var typeInspector = new ContentInspectorBuilder()
+        {
+            Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
+        }.Build();
+
+        await using var stream = file.OpenReadStream();
+
+        var result = typeInspector.Inspect(stream);
+        var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
+        var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
+
+        if (!stream.CanSeek)
+            throw new NotSupportedException("Stream does not support seeking");
+
+        stream.Seek(0, SeekOrigin.Begin);
+
+        var objectName = $"{Guid.NewGuid()}{extension}";
+
+        var filePath = await _fileStorage.UploadFileAsync(
+            objectName,
+            stream,
+            mime,
+            cancellationToken);
+
+        return Ok(new FileUploadResponse
+        {
+            FileName = file.FileName,
+            StoredFileName = objectName,
+            FilePath = filePath,
+            Size = file.Length,
+            ContentType = mime,
+            UploadedAt = DateTime.UtcNow
+        });
+    }
+
+    /// <summary>
+    /// Buffered upload, маленькие файлы в памяти
+    /// </summary>
+    [HttpPost("buffered-upload")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxBufferedFileSize)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxBufferedFileSize)]
+    [ProducesResponseType(typeof(FileUploadResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BufferedUploadFileGzip(
                     IFormFile file,
                     CancellationToken cancellationToken = default)
     {

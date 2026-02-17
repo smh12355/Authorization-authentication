@@ -55,6 +55,11 @@ public class MinioFileStorageService : IFileStorageService
         return $"{_bucketName}/{objectName}";
     }
 
+    public async Task<string> UploadGzipedFileAsync(string objectName, Stream stream, string contentType, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
     public async Task<string> UploadFileCompressedAsync(
         string bucketName,
         string objectName,
