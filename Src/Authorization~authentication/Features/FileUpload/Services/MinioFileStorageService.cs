@@ -4,6 +4,8 @@ using Amazon.S3.Transfer;
 using Authorization_authentication.Common.Options;
 using Microsoft.Extensions.Options;
 using System.IO.Compression;
+using System.IO.Pipelines;
+using System.Net.Mime;
 
 namespace Authorization_authentication.Features.FileUpload.Services;
 
@@ -24,7 +26,7 @@ public class MinioFileStorageService : IFileStorageService
             ?? throw new InvalidOperationException("MinIO BucketName is not configured.");
     }
 
-    public async Task<string> UploadFileAsync(
+    public async Task<string> UploadRawFileAsync(
         string objectName,
         Stream stream,
         string contentType,
@@ -55,9 +57,157 @@ public class MinioFileStorageService : IFileStorageService
         return $"{_bucketName}/{objectName}";
     }
 
-    public async Task<string> UploadGzipedFileAsync(string objectName, Stream stream, string contentType, CancellationToken cancellationToken = default)
+    public async Task<string> UploadRamCompressedFileAsync(
+        string objectName,
+        Stream stream,
+        string contentType,
+        CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        _logger.LogInformation(
+            "Starting streaming upload: {ObjectName} to bucket {BucketName}. Content-Type: {ContentType}",
+            objectName, _bucketName, contentType);
+
+        // Сжимаем данные и флашим буфер через Dispose
+        await using var compressedStream = new MemoryStream();
+        await using (var gzipStream = new GZipStream(
+            compressedStream,
+            CompressionLevel.Optimal,
+            leaveOpen: true))
+        {
+            await stream.CopyToAsync(gzipStream, cancellationToken);
+            await gzipStream.FlushAsync(cancellationToken);
+        } // gzipStream.Dispose() вызывает Flush() - записывает остаток данных
+
+        // Сбрасываем позицию для чтения с начала
+        if (compressedStream.CanSeek)
+            compressedStream.Seek(0, SeekOrigin.Begin);
+
+        // Загрузка в MinIO
+        var putRequest = new PutObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = $"{objectName}.gz",
+            InputStream = compressedStream,
+            ContentType = "application/gzip",
+            AutoCloseStream = false,
+            Metadata =
+            {
+                ["x-original-content-type"] = contentType
+            },
+            Headers =
+            {
+                ["Content-Encoding"] = "gzip"
+            }
+        };
+
+        var response = await _s3Client.PutObjectAsync(putRequest, cancellationToken);
+
+        _logger.LogInformation(
+            "Successfully uploaded {ObjectName}. ETag: {ETag}, CompressedSize: {Size} bytes",
+            objectName, response.ETag, response.Size);
+
+        return $"{_bucketName}/{objectName}.gz";
+    }
+
+    public async Task<string> UploadCompressedFileAsync(
+        string objectName,
+        Stream stream,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Starting streaming upload: {ObjectName} to bucket {BucketName}. Content-Type: {ContentType}",
+            objectName, _bucketName, contentType);
+
+        var pipe = new Pipe();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        // Task 1: Читаем из source и пишем сжатое в pipe
+        var compressionTask = Task.Run(async () =>
+        {
+            Exception? error = null;
+            try
+            {
+                await using var pipeStream = pipe.Writer.AsStream();
+                await using var gzipStream = new GZipStream(
+                    pipeStream,
+                    CompressionLevel.Optimal);
+                await stream.CopyToAsync(gzipStream, cts.Token);
+                await gzipStream.FlushAsync(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+                throw;
+            }
+            finally
+            {
+                await pipe.Writer.CompleteAsync(error);
+            }
+
+        }, cts.Token);
+
+        var uploadTask = Task.Run(async () =>
+        {
+            Exception? error = null;
+            try
+            {
+                // await using автоматически вызовет CompleteAsync при Dispose!
+                await using var pipeStream = pipe.Reader.AsStream();
+
+                var putRequest = new PutObjectRequest
+                {
+                    BucketName = _bucketName,
+                    Key = $"{objectName}.gz",
+                    InputStream = pipeStream,
+                    ContentType = "application/gzip",
+                    AutoCloseStream = false,
+
+                    Metadata =
+                {
+                    ["x-original-content-type"] = contentType
+                },
+                    Headers =
+                {
+                    ["Content-Encoding"] = "gzip"
+                },
+                };
+
+                return await _s3Client.PutObjectAsync(putRequest, cts.Token);
+            }
+            catch(Exception ex) 
+            {
+                error = ex;
+                throw;
+            }
+            finally
+            {
+                await pipe.Reader.CompleteAsync(error);
+            }
+
+        }, cts.Token);
+
+        try
+        {
+            await Task.WhenAll(compressionTask, uploadTask);
+        }
+        catch (Exception)
+        {
+            cts.Cancel();
+
+            await Task.WhenAll(
+                compressionTask.ContinueWith(_ => { }),
+                uploadTask.ContinueWith(_ => { }));
+            throw;
+        }
+
+        var response = uploadTask.Result;
+
+        _logger.LogInformation(
+            "Successfully uploaded {ObjectName}. ETag: {ETag}, CompressedSize: {Size} bytes",
+            objectName, response.ETag, response.Size);
+
+        return $"{_bucketName}/{objectName}.gz";
     }
 
     public async Task<string> UploadFileCompressedAsync(
