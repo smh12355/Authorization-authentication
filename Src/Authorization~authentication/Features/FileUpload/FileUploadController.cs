@@ -1,4 +1,3 @@
-// Features/FileUpload/FileUploadController.cs
 using Asp.Versioning;
 using Authorization_authentication.Common.Constants;
 using Authorization_authentication.Features.FileUpload.Models;
@@ -17,11 +16,12 @@ public class FileUploadController : ControllerBase
 {
     private readonly IFileStorageService _fileStorage;
     private readonly ILogger<FileUploadController> _logger;
+    private readonly IContentInspector _contentInspector;
 
     // Максимальный размер файла (например, 10 GB)
     private const long MaxFileSize = 10L * 1024 * 1024 * 1024;
 
-    // Максимальный размер файла (например, 10 GB)
+    // Максимальный размер файла (например, 500 mb)
     private const long MaxBufferedFileSize = 500 * 1024 * 1024;
 
     // Максимальный размер файла (например, 10 GB)
@@ -29,10 +29,12 @@ public class FileUploadController : ControllerBase
 
     public FileUploadController(
         IFileStorageService fileStorage,
-        ILogger<FileUploadController> logger)
+        ILogger<FileUploadController> logger,
+        IContentInspector contentInspector)
     {
         _fileStorage = fileStorage;
         _logger = logger;
+        _contentInspector = contentInspector;
     }
 
     /// <summary>
@@ -48,52 +50,24 @@ public class FileUploadController : ControllerBase
                     IFormFile file,
                     CancellationToken cancellationToken = default)
     {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest("No file uploaded");
-        }
+        var prepared = PrepareFile(file);
 
-        _logger.LogInformation(
-                "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
-                file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
+        if (prepared.Error is not null)
+            return prepared.Error;
 
-        var typeInspector = new ContentInspectorBuilder()
-        {
-            Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
-        }.Build();
-
-        await using var stream = file.OpenReadStream();
-
-        var result = typeInspector.Inspect(stream);
-        var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
-        var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
-
-        if (!stream.CanSeek)
-            throw new NotSupportedException("Stream does not support seeking");
-
-        stream.Seek(0, SeekOrigin.Begin);
-
-        var objectName = $"{Guid.NewGuid()}.{extension}";
+        await using var stream = prepared.Stream;
 
         var filePath = await _fileStorage.UploadRawFileAsync(
-            objectName,
+            prepared.ObjectName,
             stream,
-            mime,
+            prepared.Mime,
             cancellationToken);
 
-        return Ok(new FileUploadResponse
-        {
-            FileName = file.FileName,
-            StoredFileName = objectName,
-            FilePath = filePath,
-            Size = file.Length,
-            ContentType = mime,
-            UploadedAt = DateTime.UtcNow
-        });
+        return Ok(FileUploadResponse.Create(file.FileName, prepared, filePath, file.Length));
     }
 
     /// <summary>
-    /// Buffered upload, маленькие файлы в памяти
+    /// Buffered upload с RAM-сжатием
     /// </summary>
     [HttpPost("buffered-ram-compressed-upload")]
     [Consumes("multipart/form-data")]
@@ -105,52 +79,23 @@ public class FileUploadController : ControllerBase
                     IFormFile file,
                     CancellationToken cancellationToken = default)
     {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest("No file uploaded");
-        }
+        var prepared = PrepareFile(file);
+        if (prepared.Error is not null)
+            return prepared.Error;
 
-        _logger.LogInformation(
-                "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
-                file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
-
-        var typeInspector = new ContentInspectorBuilder()
-        {
-            Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
-        }.Build();
-
-        await using var stream = file.OpenReadStream();
-
-        var result = typeInspector.Inspect(stream);
-        var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
-        var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
-
-        if (!stream.CanSeek)
-            throw new NotSupportedException("Stream does not support seeking");
-
-        stream.Seek(0, SeekOrigin.Begin);
-
-        var objectName = $"{Guid.NewGuid()}.{extension}";
+        await using var stream = prepared.Stream;
 
         var filePath = await _fileStorage.UploadRamCompressedFileAsync(
-            objectName,
+            prepared.ObjectName,
             stream,
-            mime,
+            prepared.Mime,
             cancellationToken);
 
-        return Ok(new FileUploadResponse
-        {
-            FileName = file.FileName,
-            StoredFileName = objectName,
-            FilePath = filePath,
-            Size = file.Length,
-            ContentType = mime,
-            UploadedAt = DateTime.UtcNow
-        });
+        return Ok(FileUploadResponse.Create(file.FileName, prepared, filePath, file.Length));
     }
 
     /// <summary>
-    /// Buffered upload, маленькие файлы в памяти
+    /// Buffered upload с дисковым сжатием
     /// </summary>
     [HttpPost("buffered-compressed-upload")]
     [Consumes("multipart/form-data")]
@@ -162,48 +107,47 @@ public class FileUploadController : ControllerBase
                     IFormFile file,
                     CancellationToken cancellationToken = default)
     {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest("No file uploaded");
-        }
+        var prepared = PrepareFile(file);
+        if (prepared.Error is not null)
+            return prepared.Error;
+
+        await using var stream = prepared.Stream;
+
+        var filePath = await _fileStorage.UploadCompressedFileAsync(
+            prepared.ObjectName,
+            stream,
+            prepared.Mime,
+            cancellationToken);
+
+        return Ok(FileUploadResponse.Create(file.FileName, prepared, filePath, file.Length));
+    }
+
+    private PreparedFile PrepareFile(IFormFile file)
+    {
+        if (file is null || file.Length == 0)
+            return PreparedFile.Fail(BadRequest("No file uploaded"));
 
         _logger.LogInformation(
-                "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB} MB)",
-                file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
+            "Receiving file: {FileName}, Size: {Size} bytes ({SizeMB:F2} MB)",
+            file.FileName, file.Length, file.Length / (1024.0 * 1024.0));
 
-        var typeInspector = new ContentInspectorBuilder()
-        {
-            Definitions = MimeDetective.Definitions.DefaultDefinitions.All()
-        }.Build();
-
-        await using var stream = file.OpenReadStream();
-
-        var result = typeInspector.Inspect(stream);
-        var extension = result.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
-        var mime = result.ByMimeType().FirstOrDefault()?.MimeType ?? "bin";
+        var stream = file.OpenReadStream();
 
         if (!stream.CanSeek)
-            throw new NotSupportedException("Stream does not support seeking");
+        {
+            stream.Dispose();
+            throw new NotSupportedException($"Stream for '{file.FileName}' does not support seeking");
+        }
+
+        var inspectResult = _contentInspector.Inspect(stream);
+        var extension = inspectResult.ByFileExtension().FirstOrDefault()?.Extension ?? "bin";
+        var mime = inspectResult.ByMimeType().FirstOrDefault()?.MimeType ?? "application/octet-stream";
 
         stream.Seek(0, SeekOrigin.Begin);
 
         var objectName = $"{Guid.NewGuid()}.{extension}";
 
-        var filePath = await _fileStorage.UploadCompressedFileAsync(
-            objectName,
-            stream,
-            mime,
-            cancellationToken);
-
-        return Ok(new FileUploadResponse
-        {
-            FileName = file.FileName,
-            StoredFileName = objectName,
-            FilePath = filePath,
-            Size = file.Length,
-            ContentType = mime,
-            UploadedAt = DateTime.UtcNow
-        });
+        return new PreparedFile(stream, mime, objectName);
     }
 
     /// <summary>

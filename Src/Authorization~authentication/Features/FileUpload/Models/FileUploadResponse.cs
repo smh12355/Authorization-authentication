@@ -9,4 +9,19 @@ public record FileUploadResponse
     public long Size { get; init; }
     public string? ContentType { get; init; }
     public DateTime UploadedAt { get; init; }
+
+    public static FileUploadResponse Create(
+        string originalFileName,
+        PreparedFile prepared,
+        string filePath,
+        long size)
+        => new()
+        {
+            FileName = originalFileName,
+            StoredFileName = prepared.ObjectName,
+            FilePath = filePath,
+            Size = size,
+            ContentType = prepared.Mime,
+            UploadedAt = DateTime.UtcNow
+        };
 }
