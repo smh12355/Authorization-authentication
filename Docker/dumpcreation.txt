@@ -1,0 +1,8 @@
+docker exec -t keycloak_postgres pg_dump -U keycloak -Fc keycloak > keycloak_backup.dump // create dump for keycloak
+docker exec -i keycloak_postgres pg_restore -U keycloak -d keycloak < keycloak_backup.dump // restore dump for keycloak
+
+// create dump
+docker run --rm --network=host -v ${PWD}:/backup -e PGPASSWORD="keycloak" postgres:17 pg_dump --host=127.0.0.1 --port=5432 --username=keycloak --format=c --dbname=keycloak --file=/backup/keycloak.dump
+
+// restore dump
+docker run --rm --network=host -v ${PWD}:/backup -e PGPASSWORD="keycloak" postgres:17 pg_restore --host=127.0.0.1 --port=5432 --username=keycloak --dbname=keycloak --clean --if-exists /backup/keycloak.dump

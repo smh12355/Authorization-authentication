@@ -53,7 +53,7 @@ public class IdTokenController : ControllerBase
         var form = new Dictionary<string, string>
         {
             ["grant_type"] = "password",
-            ["client_id"] = options.RealmClientId,
+            ["client_id"] = options.ClientId,
             ["username"] = request.Username,
             ["password"] = request.Password,
             ["scope"] = "openid"
